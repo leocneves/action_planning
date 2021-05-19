@@ -1,0 +1,205 @@
+domain hera_domain {
+
+    types {
+        waypoint: object;
+        robot: object;
+        person: object;
+        obj: object;
+    };
+
+    pvariables {
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // Action costs and penalties
+        COST_MOVE(robot):  {non-fluent, real, default = -5};
+        FOUND_SOMEONE_REWARD:   {non-fluent, real, default = 7};
+        FOUND_OBJECT_REWARD:   {non-fluent, real, default = 7};
+        VISIT_WP_REWARD:   {non-fluent, real, default = 7};
+        GOAL_REWARD:   {non-fluent, real, default = 50};
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // Non-fluents
+        DOCK_AT(waypoint): { non-fluent, bool, default = false };
+        PRINTER_AT(waypoint): { non-fluent, bool, default=false };
+        distance(waypoint, waypoint): { non-fluent, int, default=10 }; // Filled externally
+        OCCUPATION_RATE(waypoint): { non-fluent, real, default = 1 }; // % of chance for the waypoint having people busy (0-1)
+        DELIVERY_DESTINATION(waypoint): { non-fluent, bool, default = false };
+        ROBOT_GOAL(waypoint): { non-fluent, bool, default = false };
+        DELIVERY_GOAL(obj, person): { non-fluent, bool, default = false };
+        OBJECT_GOAL(obj, place): { non-fluent, bool, default = false };
+        FIND_GOAL(person): { non-fluent, bool, default = false };
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // State fluents
+
+        // ROBOT
+        robot_at(robot, waypoint): { state-fluent, bool, default = false };
+        carrying_object(robot): { state-fluent, bool, default = false };
+        object_delivered(robot, waypoint): { state-fluent, bool, default = false };
+        asked_load(robot): { state-fluent, bool, default = false };
+        asked_unload(robot): { state-fluent, bool, default = false };
+        localised(robot): { state-fluent, bool, default = false };
+//        visited(waypoint): { state-fluent, bool, default = false };
+        undocked(robot): { state-fluent, bool, default = false };
+        docked(robot): { state-fluent, bool, default = false };
+
+        // GERAL
+        somebody_at(person, waypoint): { state-fluent, bool, default = false };
+        object_at(obj, waypoint): { state-fluent, bool, default = false };
+
+
+        //in_process(robot, waypoint):  { state-fluent, bool, default = false };
+
+        // Goal?
+        goal: { state-fluent, bool, default = false };
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // Action fluents
+
+        // Habilidades da Hera
+        goto_waypoint(robot, waypoint, waypoint): { action-fluent, bool, default = false }; // robot from to
+//        grasp_object(robot, obj, waypoint): { action-fluent, bool, default = false }; // robot from to
+//        place_object(robot, obj, waypoint): { action-fluent, bool, default = false }; // robot from to
+//        follow_somebody(robot, person): { action-fluent, bool, default = false }; // robot from to
+//        find_somebody(robot, obj, waypoint): { action-fluent, bool, default = false }; // robot from to
+
+        //Gerais
+
+        localise(robot): { action-fluent, bool, default = false };
+        dock(robot, waypoint): { action-fluent, bool, default = false };
+        undock(robot, waypoint): { action-fluent, bool, default = false };
+        ask_load(robot): { action-fluent, bool, default = false };
+        ask_unload(robot): { action-fluent, bool, default = false };
+        wait_load(robot): { action-fluent, bool, default = false };
+        wait_unload(robot, waypoint): { action-fluent, bool, default = false };
+    };
+
+    cpfs {
+
+        robot_at'(?r, ?w) = if (exists_{?w1: waypoint} (goto_waypoint(?r, ?w1, ?w))) then true
+                            else if (exists_{?w1: waypoint} (goto_waypoint(?r, ?w, ?w1))) then false
+                            else robot_at(?r, ?w);
+
+        undocked'(?r) = undocked(?r) ^ ~(exists_{?w: waypoint} (dock(?r, ?w))) | docked(?r) ^ (exists_{?w: waypoint} (undock(?r, ?w)));
+        docked'(?r) = docked(?r) ^ ~(exists_{?w: waypoint} (undock(?r, ?w))) | undocked(?r) ^ (exists_{?w: waypoint} (dock(?r, ?w)));
+        localised'(?r) = localised(?r) | localise(?r);
+
+
+
+        // Printing
+        carrying_object'(?r) = if (wait_load(?r)) then true
+                               else if (exists_{?w: waypoint} [wait_unload(?r, ?w)]) then false
+                               else carrying_object(?r);
+
+        //is_busy'(?p) = PRINTER_AT(?p) ^ Bernoulli(BUSY_RATE(?p));
+        somebody_at'(?p, ?w) = true;//Bernoulli(OCCUPATION_RATE(?w));
+        asked_load'(?r) = ask_load(?r) | asked_load(?r) ^ ~(exists_{?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt)]);
+        asked_unload'(?r) = ask_unload(?r) | asked_unload(?r) ^ ~(exists_{?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt)]);
+        object_delivered'(?r, ?w) = (robot_at(?r, ?w) ^ wait_unload(?r, ?w) ^ DELIVERY_DESTINATION(?w)) | object_delivered(?r, ?w);
+
+
+        // Goal
+        goal' = (forall_{?w: waypoint} [~DELIVERY_DESTINATION(?w) | (DELIVERY_DESTINATION(?w) ^ exists_{?r: robot} [object_delivered(?r, ?w)])])  | goal;
+    };
+
+    reward = if (~goal ^ forall_{?w: waypoint} [~DELIVERY_DESTINATION(?w) | (DELIVERY_DESTINATION(?w) ^ exists_{?r: robot} [object_delivered(?r, ?w)])]) then 100
+             else if (goal ^ forall_{?r: robot} [docked(?r)]) then 1000
+             else (-100 + sum_{?r: robot, ?wf: waypoint, ?wt: waypoint} [COST_MOVE(?r)*goto_waypoint(?r, ?wf, ?wt) * distance(?wf, ?wt)]);
+
+
+
+    action-preconditions {
+        // A robot must be undocked, localised and in a position to move to another
+        forall_{?r: robot, ?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt) => (robot_at(?r, ?wf) ^ localised(?r) ^ undocked(?r))];
+
+        // A robot can not move to its current position
+        //forall_{?r: robot, ?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt) => (?wf ~= ?wt)];
+
+        // A robot can not be in two places at the same time
+        //forall_{?r: robot, ?w1: waypoint, ?w2: waypoint} [?w1 == ?w2 | (robot_at(?r, ?w1) => ~robot_at(?r, ?w2))];
+
+        // Robot must be undocked to localise
+        forall_{?r: robot} [localise(?r) => undocked(?r)];
+
+        // Robot must be docked to undock and vice-versa -> note: as we're using ?w here, we must enforce the DOCK_AT to avoid instantiations of dock with wrong waypoints
+        forall_{?r: robot, ?w: waypoint} [dock(?r, ?w) => (undocked(?r) ^ DOCK_AT(?w) ^ robot_at(?r, ?w))];
+        forall_{?r: robot, ?w: waypoint} [undock(?r, ?w) => (docked(?r) ^ DOCK_AT(?w) ^ robot_at(?r, ?w))];
+
+        // There must be somebody to speak
+        forall_{?r: robot, ?p: person} [ask_load(?r) => (exists_{?w: waypoint} [~carrying_object(?r) ^ robot_at(?r, ?w) ^ somebody_at(?p, ?w)])];
+        forall_{?r: robot} [ask_unload(?r) => (~asked_unload(?r) ^ carrying_object(?r) ^ exists_{?w: waypoint} [DELIVERY_DESTINATION(?w) ^ robot_at(?r, ?w)])];
+
+        // We need to ask before waiting
+        forall_{?r: robot} [wait_load(?r) => asked_load(?r)];
+        forall_{?r: robot, ?w: waypoint} [wait_unload(?r, ?w) => asked_unload(?r)];
+
+        // Need to go to a printer to load
+        forall_{?r: robot, ?t: person} [wait_load(?r) => (exists_{?p: waypoint} [robot_at(?r, ?p) ^ somebody_at(?t, ?p)])];
+
+        // Carrying papers need to unload/load
+        forall_{?r: robot, ?w:waypoint} [wait_unload(?r, ?w) => carrying_object(?r)];
+        forall_{?r: robot} [wait_load(?r) => ~carrying_object(?r)];
+
+        // Need to unload in a DELIVERY_DESTINATION
+        forall_{?r: robot, ?w: waypoint} [wait_unload(?r, ?w) => (robot_at(?r, ?w) ^ DELIVERY_DESTINATION(?w))];
+
+        // Max 1 action at a time
+        forall_{?r: robot} [
+            (localise(?r) +
+            (sum_{?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt)]) +
+            (sum_{?wa: waypoint} [dock(?r, ?wa)]) +
+            (sum_{?wb: waypoint} [undock(?r, ?wb)]) +
+            ask_load(?r) + ask_unload(?r) +
+            wait_load(?r) + (sum_{?w: waypoint} [wait_unload(?r,?w)]) ) <= 1];
+
+    };
+
+    state-invariants {
+
+        // Robot can't be docked and undocked at the same time
+        forall_{?r: robot} [docked(?r) <=> ~undocked(?r)];
+
+    };
+}
+
+non-fluents nf_hera_domain {
+	domain = hera_domain;
+	objects {
+		waypoint: {garagem, quarto, sala, cozinha, mesa_cozinha, armario_cozinha};
+		obj: {soda, celular, travesseiro, notebook};
+    robot: {hera};
+    person: {operador, vizinho};
+	};
+
+	non-fluents {
+      DOCK_AT(sala);
+		PRINTER_AT(printer-ent);
+//		PRINTER_AT(printer-corridor);
+//		PRINTER_AT(printer-phdarea);
+//		OCCUPATION_RATE(printer-ent) = 0.00;
+//		OCCUPATION_RATE(printer-phdarea) = 0.5;
+//		OCCUPATION_RATE(printer-corridor) = 0.94;
+
+//		ROBOT_GOAL(garagem);
+//		DELIVERY_GOAL(obj, person);
+//		OBJECT_GOAL(obj, place);
+//		FIND_GOAL(person);
+	};
+}
+
+instance hera_instance__1 {
+	domain = hera_domain;
+	non-fluents = nf_hera_domain;
+
+	init-state {
+
+		robot_at(hera, sala);
+		somebody_at(operador, quarto);
+    somebody_at(vizinho, garagem);
+    undocked(hera);
+  	localised(hera);
+	};
+
+	max-nondef-actions = 1;
+	horizon  = 15;
+	discount = 1.0;
+}

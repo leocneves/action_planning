@@ -1,0 +1,14 @@
+<package>
+  <description brief="action_planning">
+
+     action_planning
+
+  </description>
+  <author>Leonardo</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/action_planning</url>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+
+</package>

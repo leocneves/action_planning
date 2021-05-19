@@ -1,0 +1,236 @@
+domain hera_domain {
+
+    types {
+        waypoint: object;
+        robot: object;
+        person: object;
+        obj: object;
+    };
+
+    pvariables {
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // Action costs and penalties
+        COST_MOVE(robot):  {non-fluent, real, default = -10};
+        FOUND_SOMEONE_REWARD:   {non-fluent, real, default = 7};
+        FOUND_OBJECT_REWARD:   {non-fluent, real, default = 7};
+        VISIT_WP_REWARD:   {non-fluent, real, default = 7};
+        GOAL_REWARD:   {non-fluent, real, default = 50};
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // Non-fluents
+        DOCK_AT(waypoint): { non-fluent, bool, default = false };
+        PRINTER_AT(waypoint): { non-fluent, bool, default=false };
+        distance(waypoint, waypoint): { non-fluent, int, default=10 }; // Filled externally
+        OCCUPATION_RATE(waypoint): { non-fluent, real, default = 1 }; // % of chance for the waypoint having people busy (0-1)
+        DELIVERY_DESTINATION(waypoint): { non-fluent, bool, default = false };
+        ROBOT_GOAL(waypoint): { non-fluent, bool, default = false };
+        DELIVERY_GOAL(obj, person): { non-fluent, bool, default = false };
+        OBJECT_GOAL(obj, waypoint): { non-fluent, bool, default = false };
+        FIND_SOMEBODY_GOAL: { non-fluent, bool, default = false };
+        INTRO_TO_SOMEBODY_GOAL: { non-fluent, bool, default = false };
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // State fluents
+
+        // ROBOT
+        robot_at(robot, waypoint): { state-fluent, bool, default = false };
+        carrying_object(robot, obj): { state-fluent, bool, default = false };
+        object_delivered(robot, waypoint): { state-fluent, bool, default = false };
+        asked_load(robot): { state-fluent, bool, default = false };
+        asked_unload(robot): { state-fluent, bool, default = false };
+        localised(robot): { state-fluent, bool, default = false };
+//        visited(waypoint): { state-fluent, bool, default = false };
+        undocked(robot): { state-fluent, bool, default = false };
+        docked(robot): { state-fluent, bool, default = false };
+        somebody_at(person, waypoint): { state-fluent, bool, default = false };
+        object_at(obj, waypoint): { state-fluent, bool, default = false };
+        // Pessoas
+        saw_somebody_at(waypoint): { state-fluent, bool, default = false }; // Viu alguém em algum lugar
+        robot_introduced(robot): { state-fluent, bool, default = false };
+        nearToSomebody(robot): { state-fluent, bool, default = false };
+
+        //in_process(robot, waypoint):  { state-fluent, bool, default = false };
+
+        // Goal?
+//        goal: { state-fluent, bool, default = false };
+        goal_obj: { state-fluent, bool, default = false };
+        goal_obj_reached: { state-fluent, bool, default = false };
+        goal_find_somebody: { state-fluent, bool, default = false };
+        goal_find_somebody_reached: { state-fluent, bool, default = false };
+        goal_intro_to: { state-fluent, bool, default = false };
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        // Action fluents
+
+        // Habilidades da Hera
+        goto_waypoint(robot, waypoint, waypoint): { action-fluent, bool, default = false }; // Navegar para algum lugar
+        grasp_object(robot, obj, waypoint): { action-fluent, bool, default = false }; // Pegar objeto de algum lugar
+        place_object(robot, obj, waypoint): { action-fluent, bool, default = false }; // Colocar objeto em algum lugar
+        // Pessoas
+        aproximateToSomebody(robot): { action-fluent, bool, default = false };
+        introMyself(robot): { action-fluent, bool, default = false };
+
+//        follow_somebody(robot, person): { action-fluent, bool, default = false }; // robot from to
+//        find_somebody(robot, obj, waypoint): { action-fluent, bool, default = false }; // robot from to
+
+        //Gerais
+
+        localise(robot): { action-fluent, bool, default = false };
+        dock(robot, waypoint): { action-fluent, bool, default = false };
+        undock(robot, waypoint): { action-fluent, bool, default = false };
+        ask_load(robot): { action-fluent, bool, default = false };
+        ask_unload(robot): { action-fluent, bool, default = false };
+        wait_load(robot): { action-fluent, bool, default = false };
+        wait_unload(robot, waypoint): { action-fluent, bool, default = false };
+    };
+
+    cpfs {
+
+        robot_at'(?r, ?w) = if (exists_{?w1: waypoint} (goto_waypoint(?r, ?w1, ?w))) then true
+                            else if (exists_{?w1: waypoint} (goto_waypoint(?r, ?w, ?w1))) then false
+                            else robot_at(?r, ?w);
+
+        nearToSomebody'(?r) = if (exists_{?w: waypoint} (aproximateToSomebody(?r) ^ saw_somebody_at(?w) ^ robot_at(?r, ?w))) then true
+                              else false;
+
+        robot_introduced'(?r) = if (introMyself(?r)) then true
+                                else robot_introduced(?r);
+
+//        saw_somebody_at'(?w) = if (forall_{?p: person, ?r: robot} (somebody_at(?p, ?w) ^ robot_at(?r, ?w))) then true
+//                              else saw_somebody_at(?w); // Atualização por sensor
+
+        saw_somebody_at'(?w) = true;
+
+        object_at'(?o, ?w) = if (exists_{?r: robot} (place_object(?r, ?o, ?w))) then true
+                            else if (exists_{?r: robot} (grasp_object(?r, ?o, ?w))) then false
+                            else object_at(?o, ?w);
+
+        undocked'(?r) = undocked(?r) ^ ~(exists_{?w: waypoint} (dock(?r, ?w))) | docked(?r) ^ (exists_{?w: waypoint} (undock(?r, ?w)));
+        docked'(?r) = docked(?r) ^ ~(exists_{?w: waypoint} (undock(?r, ?w))) | undocked(?r) ^ (exists_{?w: waypoint} (dock(?r, ?w)));
+        localised'(?r) = localised(?r) | localise(?r);
+
+
+        // Objeto
+        carrying_object'(?r, ?o) = if (exists_{?w: waypoint} [grasp_object'(?r, ?o, ?w)]) then true
+                              else if (exists_{?w: waypoint} [place_object'(?r, ?o, ?w)]) then false
+                              // else if (exists_{?w: waypoint} [wait_unload(?r, ?w)]) then false
+                               else carrying_object(?r, ?o);
+
+        //is_busy'(?p) = PRINTER_AT(?p) ^ Bernoulli(BUSY_RATE(?p));
+        somebody_at'(?p, ?w) = true;//Bernoulli(OCCUPATION_RATE(?w));
+        asked_load'(?r) = ask_load(?r) | asked_load(?r) ^ ~(exists_{?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt)]);
+        asked_unload'(?r) = ask_unload(?r) | asked_unload(?r) ^ ~(exists_{?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt)]);
+        object_delivered'(?r, ?w) = (robot_at(?r, ?w) ^ wait_unload(?r, ?w) ^ DELIVERY_DESTINATION(?w)) | object_delivered(?r, ?w);
+
+
+        // Fluentes de Objetivo
+
+//        goal' = (forall_{?w: waypoint} [~ROBOT_GOAL(?w) |
+//                (ROBOT_GOAL(?w) ^ exists_{?r: robot} [object_delivered(?r, ?w)])])  | goal;
+
+//        goal_obj' = (forall_{?w: waypoint, ?o: obj} [~OBJECT_GOAL(?o, ?w) |
+//                OBJECT_GOAL(?o, ?w) ^ exists_{?r: robot} [OBJECT_GOAL(?o, ?w) ^ object_at(?o, ?w)]]) | goal_obj;
+
+        goal_obj' = goal_obj | exists_{?w: waypoint, ?o: obj, ?r: robot} [OBJECT_GOAL(?o, ?w) ^ place_object(?r, ?o, ?w)];
+
+
+        goal_obj_reached' = if (goal_obj) then true
+                            else goal_obj_reached;
+
+//        goal_find_somebody' = (forall_{?w: waypoint} [~FIND_SOMEBODY_GOAL |
+//                FIND_SOMEBODY_GOAL ^ exists_{?r: robot} [FIND_SOMEBODY_GOAL ^ nearToSomebody(?r) ^ saw_somebody_at(?w)]]) | goal_find_somebody;
+
+        goal_find_somebody' = goal_find_somebody | exists_{?r: robot, ?w: waypoint} [(FIND_SOMEBODY_GOAL ^ aproximateToSomebody(?r))];
+
+        goal_find_somebody_reached' = goal_find_somebody_reached | goal_find_somebody;
+
+        goal_intro_to' = goal_intro_to | exists_{?r: robot, ?w: waypoint} [(INTRO_TO_SOMEBODY_GOAL ^ robot_introduced(?r))];
+    };
+
+
+
+//        reward = if (goal_obj ^ goal_find_somebody) then 3000
+//                 else if (~goal_obj) then
+//                 (sum_{?r: robot, ?o: obj, ?w: waypoint, ?w2: waypoint} [(place_object(?r, ?o, ?w) ^ OBJECT_GOAL(?o, ?w))] * 100)
+//                 else if (~goal_find_somebody) then
+//                 (sum_{?r: robot} [(FIND_SOMEBODY_GOAL ^ aproximateToSomebody(?r))] * 500)
+//                 else (-200);
+
+
+        reward = if (goal_intro_to) then 3000
+//                 else if (~goal_find_somebody)
+//                  then (sum_{?r: robot} [(aproximateToSomebody(?r))] * 100)
+                 else -200;
+
+
+
+    action-preconditions {
+        // Aproximação
+        forall_{?r: robot} [aproximateToSomebody(?r) => (exists_{?w: waypoint} [(robot_at(?r, ?w) ^ saw_somebody_at(?w))])];
+//        forall_{?r: robot, ?w: waypoint} [aproximateToSomebody(?r) => (robot_at(?r, ?w) ^ saw_somebody_at(?w))];
+
+        // Intro para alguém
+        forall_{?r: robot} [introMyself(?r) => (exists_{?w: waypoint} [(robot_at(?r, ?w) ^ saw_somebody_at(?w) ^ nearToSomebody(?r))])];
+
+
+        // A robot must be undocked, localised and in a position to move to another
+        forall_{?r: robot, ?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt) => (robot_at(?r, ?wf) ^ localised(?r) ^ undocked(?r))];
+
+        // Precisa estar no lugar para pegar/colocar um objeto
+        forall_{?r: robot, ?w: waypoint, ?o: obj, ?o2: obj} [grasp_object(?r, ?o, ?w) => (robot_at(?r, ?w) ^ object_at(?o, ?w) ^ ~carrying_object(?r, ?o2))];
+        forall_{?r: robot, ?w: waypoint, ?o: obj} [place_object(?r, ?o, ?w) => (robot_at(?r, ?w) ^ carrying_object(?r, ?o))];
+
+
+        // A robot can not move to its current position
+        //forall_{?r: robot, ?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt) => (?wf ~= ?wt)];
+
+        // A robot can not be in two places at the same time
+        forall_{?r: robot, ?w1: waypoint, ?w2: waypoint} [?w1 == ?w2 | (robot_at(?r, ?w1) => ~robot_at(?r, ?w2))];
+
+        // Robot must be undocked to localise
+        forall_{?r: robot} [localise(?r) => undocked(?r)];
+
+        // Robot must be docked to undock and vice-versa -> note: as we're using ?w here, we must enforce the DOCK_AT to avoid instantiations of dock with wrong waypoints
+        forall_{?r: robot, ?w: waypoint} [dock(?r, ?w) => (undocked(?r) ^ DOCK_AT(?w) ^ robot_at(?r, ?w))];
+        forall_{?r: robot, ?w: waypoint} [undock(?r, ?w) => (docked(?r) ^ DOCK_AT(?w) ^ robot_at(?r, ?w))];
+
+        // There must be somebody to speak
+        forall_{?r: robot, ?p: person, ?o: obj} [ask_load(?r) => (exists_{?w: waypoint} [~carrying_object(?r, ?o) ^ robot_at(?r, ?w) ^ somebody_at(?p, ?w)])];
+        forall_{?r: robot, ?o: obj} [ask_unload(?r) => (~asked_unload(?r) ^ carrying_object(?r, ?o) ^ exists_{?w: waypoint} [DELIVERY_DESTINATION(?w) ^ robot_at(?r, ?w)])];
+
+        // We need to ask before waiting
+        forall_{?r: robot} [wait_load(?r) => asked_load(?r)];
+        forall_{?r: robot, ?w: waypoint} [wait_unload(?r, ?w) => asked_unload(?r)];
+
+        // Need to go to a printer to load
+        forall_{?r: robot, ?t: person} [wait_load(?r) => (exists_{?p: waypoint} [robot_at(?r, ?p) ^ somebody_at(?t, ?p)])];
+
+        // Carrying papers need to unload/load
+        forall_{?r: robot, ?w:waypoint, ?o: obj} [wait_unload(?r, ?w) => carrying_object(?r, ?o)];
+        forall_{?r: robot, ?o: obj} [wait_load(?r) => ~carrying_object(?r, ?o)];
+
+        // Need to unload in a DELIVERY_DESTINATION
+        forall_{?r: robot, ?w: waypoint} [wait_unload(?r, ?w) => (robot_at(?r, ?w) ^ DELIVERY_DESTINATION(?w))];
+
+        // Max 1 action at a time
+        forall_{?r: robot} [
+            (localise(?r) +
+            (sum_{?wf: waypoint, ?wt: waypoint} [goto_waypoint(?r, ?wf, ?wt)]) +
+            (sum_{?r: robot, ?o: obj, ?w: waypoint} [grasp_object(?r, ?o, ?w)]) +
+            (sum_{?r: robot, ?o: obj, ?w: waypoint} [place_object(?r, ?o, ?w)]) +
+            aproximateToSomebody(?r) +
+            introMyself(?r) +
+            (sum_{?wa: waypoint} [dock(?r, ?wa)]) +
+            (sum_{?wb: waypoint} [undock(?r, ?wb)]) +
+            ask_load(?r) + ask_unload(?r) +
+            wait_load(?r) + (sum_{?w: waypoint} [wait_unload(?r,?w)]) ) <= 1];
+
+    };
+
+    state-invariants {
+
+        // Robot can't be docked and undocked at the same time
+        forall_{?r: robot} [docked(?r) <=> ~undocked(?r)];
+
+    };
+}
