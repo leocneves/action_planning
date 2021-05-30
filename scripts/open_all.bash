@@ -1,6 +1,6 @@
 #!/bin/sh
 
-roslaunch action_planning test_pizza.launch
+roslaunch action_planning hera_plan_main.launch
 
 rostopic echo /rosplan_plan_dispatcher/action_dispatch
 
