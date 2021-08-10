@@ -1,0 +1,3 @@
+gotoWaypoint_hera_sala_bar;
+gotoWaypoint_hera_bar_bench;
+gotoWaypoint_hera_bench_bookshelf

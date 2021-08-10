@@ -1,0 +1,28 @@
+<launch>
+  <arg name="plan_folder" default="$(find action_planning)/plans" />
+
+  <node
+    name="pnp_ros"
+    pkg="pnp_ros" type="pnp_node"
+    respawn="false" output="screen">
+    <param name="robotname" value="hera" />
+      <param name="plan_folder" value="$(arg plan_folder)" />
+      <param name="learning" value="false" />
+      <param name="autorestart" value="false" />
+      <param name="use_java_connection" value="false" />
+  </node>
+
+  <node
+    name="PNPActionServer"
+    pkg="action_planning" type="PNPActionServer.py"
+    respawn="false" output="screen">
+  </node>
+
+  <!-- <node
+    name="PNPActionServer"
+    pkg="pnp_ros" type="pnp_as"
+    respawn="false" output="screen">
+  </node> -->
+
+
+</launch>

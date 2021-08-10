@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+
+<!-- Criando o plano -->
+	<node pkg="action_planning" type="plan.sh" name="call_problem" respawn="false" output="screen"/>
+<!-- Criando o plano -->
+
+<!-- Alterando o plano e adicionando na pasta correta -->
+	<!-- <arg name="node_start_delay" default="4.0" />
+	<node name="pnp_config" pkg="action_planning" type="get_plan.py"
+		launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " /> -->
+	<!-- <node
+		name="get_plan"
+		pkg="action_planning" type="get_plan.py"
+		respawn="false" output="screen">
+	</node> -->
+
+</launch>

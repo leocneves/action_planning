@@ -62,6 +62,8 @@
 		<arg name="data_path"            value="$(arg data_path)" />
 		<arg name="planner_interface" 	 value="$(arg planner_interface)" />
 		<arg name="planner_command"      value="$(arg planner_command)" />
+
+
 	</include>
 
 	<group if="$(eval dispatcher == 'simple')" >

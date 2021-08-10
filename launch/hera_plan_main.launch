@@ -6,7 +6,7 @@
 <!--
 	<arg name="domain_path"					default="/home/leonardo/catkin_ws/src/action_planning/domains/turtlebot_domain_goal.rddl"/>
 	<arg name="problem_path"				default="/home/leonardo/catkin_ws/src/action_planning/domains/turtlebot_inst.rddl" /> -->
-	<!-- <param name="/planspace_file" 			value="/home/leonardo/catkin_ws/src/action_planning/feeding_plans.txt"/> -->
+	<param name="/planspace_file" 			value="/home/leonardo/catkin_ws/src/action_planning/feeding_plans.txt"/>
 
 
 
@@ -23,12 +23,21 @@
     <arg name="data_path" default="$(find action_planning)/common/" />
 
 		<!-- simple -->
-		<arg name="planner_command" if="$(eval dispatcher == 'simple')" value="timeout 90 $(find rosplan_planning_system)/common/bin/prost/run_prost.sh DOMAIN PROBLEM &quot;[PROST -s 1 -se [THTS -act [UCB1] -out [UMC] -backup [PB] -init [Expand -h [IDS]] -t 1.0 ]]&quot;"/>
+		<arg name="planner_command" if="$(eval dispatcher == 'simple')" value="$(find rosplan_planning_system)/common/bin/prost/run_prost.sh DOMAIN PROBLEM &quot;[PROST -s 1 -se [THTS -act [UCB1] -out [UMC] -backup [PB] -init [Expand -h [IDS]] -t 1.0 ]]&quot; /home/leonardo/catkin_ws/src/action_planning/prost_out.txt"/>
 		<!--<arg name="planner_command" if="$(eval dispatcher == 'simple')" value="timeout 40 $(find rosplan_planning_system)/common/bin/prost/run_prost.sh DOMAIN PROBLEM &quot;[PROST -s 1 -se [THTS -act [UCB1] -out [UMC] -backup [PB] -init [Expand -h [IDS]] -t 1.0 ]]&quot;" />-->
 
 		<!-- online -->
 		<arg name="planner_command" if="$(eval dispatcher == 'online')"	value="$(find rosplan_planning_system)/common/bin/prost/run_prost_online.sh DOMAIN PROBLEM &quot;[PROST -s 1 -se [THTS -act [UCB1] -out [UMC] -backup [PB] -init [Expand -h [IDS]] -t 1.0 ]]&quot; /tmp/prostout.txt" />
 		<!--<arg name="planner_command" if="$(eval dispatcher == 'online')"	value="$(find rosplan_planning_system)/common/bin/prost/run_prost_online.sh DOMAIN PROBLEM &quot;[PROST -s 1 -se [THTS -act [UCB1] -out [UMC] -backup [PB] -init [Expand -h [IDS]] -t 1.0 ]]&quot;" />-->
 		<arg name="dispatcher" 				value="$(arg dispatcher)" />
+
+
+	</include>
+
+	<!-- Starting PNP ROS -->
+	<!--
+	 - pnp Action Server
+	 -->
+	<include file="$(find action_planning)/launch/pnp_ros.launch">
 	</include>
 </launch>

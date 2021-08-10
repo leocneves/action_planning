@@ -1,8 +1,8 @@
 non-fluents nf_hera_domain {
 	domain = hera_domain;
 	objects {
-		waypoint: {garagem, quarto, sala, mesaCozinha, lixoCozinha};
-		obj: {soda, celular, travesseiro};
+		waypoint: {garagem, quarto, sala, mesaCozinha, lixoCozinha, sidetable, bench, bookshelf, bar};
+		obj: {soda, celular, travesseiro, sauce};
     robot: {hera};
     person: {operador, vizinho};
 	};
@@ -14,12 +14,13 @@ non-fluents nf_hera_domain {
 //		PRINTER_AT(printer-phdarea);
 //		OCCUPATION_RATE(printer-ent) = 0.00;
 //		OCCUPATION_RATE(printer-phdarea) = 0.5;
-//		OCCUPATION_RATE(printer-corridor) = 0.94;
+		OCCUPATION_RATE(garagem) = 0.5;
+		OCCUPATION_RATE(bar) = 0.5;
 
-  		ROBOT_GOAL(mesaCozinha);
+//  		ROBOT_GOAL(mesaCozinha);
 //			DELIVERY_DESTINATION(mesaCozinha);
 //		DELIVERY_GOAL(obj, person);
-  		OBJECT_GOAL(celular, lixoCozinha);
+//  		OBJECT_GOAL(celular, lixoCozinha);
   		FIND_SOMEBODY_GOAL = true;
 			INTRO_TO_SOMEBODY_GOAL = true;
 	};
@@ -32,16 +33,19 @@ instance hera_instance__1 {
 	init-state {
 
 		robot_at(hera, sala);
-		somebody_at(operador, quarto);
-    somebody_at(vizinho, garagem);
+
+		//somebody_at(operador, quarto);
+    //somebody_at(vizinho, garagem);
+
 		object_at(celular, mesaCozinha);
-		object_at(travesseiro, quarto);
-		saw_somebody_at(garagem);
+		object_at(sauce, sidetable);
+
+//		saw_somebody_at(garagem);
     undocked(hera);
   	localised(hera);
 	};
 
 	max-nondef-actions = 1;
-	horizon  = 10;
-	discount = 1.0;
+	horizon  = 6;
+	discount = 3.0;
 }

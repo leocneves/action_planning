@@ -1,0 +1,1 @@
+*if* personhere *during* gotoWaypoint *do* say_hello; waitfor_not_personhere; restart_action
